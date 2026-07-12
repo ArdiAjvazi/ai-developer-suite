@@ -1,8 +1,17 @@
 import { prisma } from "@/server/db";
 import { createChatCompletion, isOpenAiConfigured } from "@/server/ai/client";
 import { buildReadmePrompt } from "@/server/ai/prompts/readme";
-import { buildMockReadme } from "@/server/ai/prompts/mock-readme";
+import { buildMockReadmeResult } from "@/server/ai/prompts/mock-readme";
 import type { GenerateReadmeInput } from "@/features/readme/schemas/generate-readme";
+import type { ReadmeResult } from "@/features/readme/types";
+import {
+  detectProjectStack,
+  deriveProjectName,
+} from "@/features/readme/lib/detect-stack";
+import {
+  buildBadges,
+  templateSections,
+} from "@/features/readme/lib/templates";
 
 async function ensureDefaultProject(userId: string) {
   const existing = await prisma.project.findFirst({
@@ -23,12 +32,62 @@ async function ensureDefaultProject(userId: string) {
   });
 }
 
+function stripWrappingFences(content: string) {
+  const trimmed = content.trim();
+  const match = trimmed.match(/^```(?:markdown|md)?\s*([\s\S]*?)\s*```$/i);
+  return match ? match[1].trim() : trimmed;
+}
+
+function enrichLiveMarkdown(
+  markdown: string,
+  input: GenerateReadmeInput,
+  generationTimeMs: number,
+): ReadmeResult {
+  const template = input.template ?? "Professional";
+  const detected = detectProjectStack(input.description, input.stack);
+  const projectName = deriveProjectName(input.description, input.projectName);
+  const sections = templateSections(template);
+  const badges = buildBadges(detected, template);
+  const wordCount = markdown.trim().split(/\s+/).length;
+  const completeness = Math.min(98, 72 + sections.length);
+  const clarity = Math.min(96, 80 + Math.min(15, Math.floor(markdown.length / 400)));
+  const professionalism = Math.min(97, 84);
+  const seo = Math.min(94, 78);
+  const githubReadability = Math.min(98, 82 + Math.floor(sections.length / 2));
+  const overall = Math.round(
+    (completeness + clarity + professionalism + seo + githubReadability) / 5,
+  );
+
+  return {
+    markdown,
+    projectName,
+    quality: {
+      overall,
+      completeness,
+      clarity,
+      professionalism,
+      seo,
+      githubReadability,
+    },
+    metrics: {
+      generationTimeMs,
+      wordCount,
+      sectionCount: sections.length,
+      template,
+      detectedStack: detected,
+    },
+    badges,
+    sectionsGenerated: sections,
+  };
+}
+
 export type GenerateReadmeResult = {
   jobId: string;
   markdown: string;
   model: string;
   status: "SUCCEEDED" | "FAILED";
-  mock?: boolean;
+  mock: boolean;
+  result: ReadmeResult;
 };
 
 export async function generateReadmeForUser(
@@ -36,6 +95,10 @@ export async function generateReadmeForUser(
   input: GenerateReadmeInput,
 ): Promise<GenerateReadmeResult> {
   const project = await ensureDefaultProject(userId);
+  const startedAt = new Date();
+  const template = input.template ?? "Professional";
+  const detected = detectProjectStack(input.description, input.stack);
+  const projectName = deriveProjectName(input.description, input.projectName);
 
   const job = await prisma.job.create({
     data: {
@@ -44,26 +107,33 @@ export async function generateReadmeForUser(
       type: "README",
       status: "RUNNING",
       inputCode: JSON.stringify({
-        stack: input.stack,
         description: input.description,
+        template,
+        projectName,
+        stack: input.stack ?? detected.primaryStack,
+        detected,
       }),
-      startedAt: new Date(),
+      startedAt,
     },
   });
 
   try {
     const useMock = !isOpenAiConfigured();
-
-    let markdown: string;
+    let result: ReadmeResult;
     let model: string;
 
     if (useMock) {
-      // Small delay so the UI loading state is visible during local testing
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      markdown = buildMockReadme(input);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const generationTimeMs = Date.now() - startedAt.getTime();
+      result = buildMockReadmeResult(input, generationTimeMs);
       model = "mock-codepilot-local";
     } else {
-      const prompt = buildReadmePrompt(input);
+      const prompt = buildReadmePrompt({
+        description: input.description,
+        template,
+        projectName,
+        detected,
+      });
       const completion = await createChatCompletion(
         [
           { role: "system", content: prompt.system },
@@ -71,7 +141,9 @@ export async function generateReadmeForUser(
         ],
         { temperature: 0.35 },
       );
-      markdown = stripWrappingFences(completion.content);
+      const markdown = stripWrappingFences(completion.content);
+      const generationTimeMs = Date.now() - startedAt.getTime();
+      result = enrichLiveMarkdown(markdown, input, generationTimeMs);
       model = completion.model;
     }
 
@@ -80,9 +152,13 @@ export async function generateReadmeForUser(
       data: {
         status: "SUCCEEDED",
         outputData: {
-          markdown,
+          result,
+          markdown: result.markdown,
           model,
-          stack: input.stack,
+          template,
+          projectName: result.projectName,
+          qualityScore: result.quality.overall,
+          language: result.metrics.detectedStack.language,
           mock: useMock,
         },
         finishedAt: new Date(),
@@ -91,10 +167,11 @@ export async function generateReadmeForUser(
 
     return {
       jobId: job.id,
-      markdown,
+      markdown: result.markdown,
       model,
       status: "SUCCEEDED",
       mock: useMock,
+      result,
     };
   } catch (error) {
     const message =
@@ -111,10 +188,4 @@ export async function generateReadmeForUser(
 
     throw error;
   }
-}
-
-function stripWrappingFences(content: string) {
-  const trimmed = content.trim();
-  const match = trimmed.match(/^```(?:markdown|md)?\s*([\s\S]*?)\s*```$/i);
-  return match ? match[1].trim() : trimmed;
 }

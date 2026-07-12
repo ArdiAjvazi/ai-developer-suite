@@ -1,138 +1,282 @@
 import type { GenerateReadmeInput } from "@/features/readme/schemas/generate-readme";
+import {
+  detectProjectStack,
+  deriveProjectName,
+} from "@/features/readme/lib/detect-stack";
+import {
+  buildBadges,
+  buildFolderTree,
+  installCommands,
+  templateSections,
+} from "@/features/readme/lib/templates";
+import type { ReadmeResult } from "@/features/readme/types";
 
-function deriveTitle(description: string, stack: string) {
-  const firstLine =
-    description
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => line.length > 0) ?? `${stack} Project`;
-
-  const cleaned = firstLine
-    .replace(/^#+\s*/, "")
-    .replace(/^["'`]+|["'`]+$/g, "")
-    .slice(0, 80);
-
-  return cleaned || `${stack} Project`;
-}
-
-function excerpt(description: string, max = 280) {
+function excerpt(description: string, max = 320) {
   const compact = description.replace(/\s+/g, " ").trim();
   if (compact.length <= max) return compact;
   return `${compact.slice(0, max).trim()}…`;
 }
 
-function installBlock(stack: string) {
-  switch (stack) {
-    case "Python":
-      return `\`\`\`bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -r requirements.txt
-python main.py
-\`\`\``;
-    case "Rust":
-      return `\`\`\`bash
-cargo build --release
-cargo run
-\`\`\``;
-    case "Go":
-      return `\`\`\`bash
-go mod tidy
-go run ./cmd/app
-\`\`\``;
-    case "Node.js":
-      return `\`\`\`bash
-npm install
-npm start
-\`\`\``;
-    default:
-      return `\`\`\`bash
-npm install
-npm run dev
-\`\`\``;
-  }
+function scoreFromText(description: string, sectionCount: number) {
+  const lengthBonus = Math.min(20, Math.floor(description.length / 80));
+  const completeness = Math.min(98, 70 + sectionCount);
+  const clarity = Math.min(96, 78 + lengthBonus);
+  const professionalism = Math.min(97, 82 + Math.floor(sectionCount / 3));
+  const seo = Math.min(94, 74 + lengthBonus);
+  const githubReadability = Math.min(98, 80 + Math.floor(sectionCount / 2));
+  const overall = Math.round(
+    (completeness + clarity + professionalism + seo + githubReadability) / 5,
+  );
+
+  return {
+    overall,
+    completeness,
+    clarity,
+    professionalism,
+    seo,
+    githubReadability,
+  };
 }
 
 /**
- * Local mock README used when OPENAI_API_KEY is missing or a placeholder.
- * Lets us exercise UI + Job persistence without a live provider.
+ * Rich mock README for local testing without an OpenAI key.
  */
-export function buildMockReadme(input: GenerateReadmeInput) {
-  const title = deriveTitle(input.description, input.stack);
+export function buildMockReadmeResult(
+  input: GenerateReadmeInput,
+  generationTimeMs = 700,
+): ReadmeResult {
+  const template = input.template ?? "Professional";
+  const detected = detectProjectStack(input.description, input.stack);
+  const projectName = deriveProjectName(input.description, input.projectName);
   const summary = excerpt(input.description);
   const year = new Date().getFullYear();
+  const sections = templateSections(template);
+  const badges = buildBadges(detected, template);
+  const tree = buildFolderTree(detected);
+  const install = installCommands(detected);
 
-  return `# ${title}
+  const envBlock = `\`\`\`bash
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/db"
+AUTH_SECRET="replace-me"
+OPENAI_API_KEY="sk-..."
+OPENAI_BASE_URL="https://api.openai.com/v1"
+\`\`\``;
 
-![Status](https://img.shields.io/badge/status-mock%20preview-blue)
-![Stack](https://img.shields.io/badge/stack-${encodeURIComponent(input.stack).replace(/%20/g, "%20")}-informational)
-![CodePilot](https://img.shields.io/badge/CodePilot-AI-black)
+  const apiSection =
+    template === "API" || /api|endpoint|rest/i.test(input.description)
+      ? `
+## API Endpoints
 
-> Generated locally in **mock mode** (no OpenAI key configured). Swap in a real \`OPENAI_API_KEY\` for live model output.
+| Method | Path | Description |
+| --- | --- | --- |
+| \`GET\` | \`/api/health\` | Health check |
+| \`POST\` | \`/api/v1/resources\` | Create a resource |
+| \`GET\` | \`/api/v1/resources/:id\` | Fetch a resource |
+`
+      : "";
 
-## Overview
+  const authSection =
+    detected.authentication || template === "Enterprise" || template === "API"
+      ? `
+## Authentication
+
+${detected.authentication ? `This project uses **${detected.authentication}**.` : "Secure your routes with session or token-based auth."}
+
+1. Configure provider credentials in \`.env\`
+2. Protect dashboard routes with middleware/proxy
+3. Never expose secrets to the client
+`
+      : "";
+
+  const architectureSection =
+    template === "Enterprise" || template === "Professional"
+      ? `
+## Architecture Overview
+
+- Modular feature folders for domain logic
+- Shared UI primitives for consistent product UX
+- Server-only integrations for auth, AI, and persistence
+- Async jobs for long-running generation workflows
+`
+      : "";
+
+  const markdown = `# ${projectName}
+
+${badges.join("\n")}
+
+> Generated by **CodePilot AI** · Template: **${template}** · Stack detected: **${detected.primaryStack}**
+
+## Description
 
 ${summary}
 
-This README was synthesized from your project description and the selected **${input.stack}** stack so you can validate the CodePilot UI, API, and database job flow end-to-end.
+${projectName} is documented for GitHub-ready collaboration with clear setup steps, examples, and contribution guidance.
 
 ## Features
 
-- Clean, developer-centric documentation structure
-- Stack-aware getting started commands for **${input.stack}**
-- Ready-to-copy Markdown for GitHub
-- Persisted as a CodePilot \`README\` job with status \`SUCCEEDED\`
+- Production-minded structure tailored for **${template}** docs
+- Auto-detected stack signals (${[detected.language, detected.framework, detected.database].filter(Boolean).join(", ") || detected.primaryStack})
+- Complete onboarding: install, env, usage, and examples
+- Export-friendly Markdown for README.md, HTML, and print/PDF flows
 
 ## Tech Stack
 
-| Layer | Choice |
+| Layer | Detected |
 | --- | --- |
-| Primary stack | ${input.stack} |
-| Docs generator | CodePilot AI (mock) |
-| Persistence | PostgreSQL + Prisma Job |
+| Language | ${detected.language ?? "—"} |
+| Framework | ${detected.framework ?? detected.primaryStack} |
+| Package manager | ${detected.packageManager ?? "—"} |
+| Frontend | ${detected.frontend ?? "—"} |
+| Backend | ${detected.backend ?? "—"} |
+| Database | ${detected.database ?? "—"} |
+| ORM | ${detected.orm ?? "—"} |
+| Auth | ${detected.authentication ?? "—"} |
+| Deploy | ${detected.deployment ?? "—"} |
+
+## Requirements
+
+- Git
+- ${detected.packageManager ? `${detected.packageManager} package manager` : "A package manager for your ecosystem"}
+- Runtime for ${detected.language ?? detected.primaryStack}
+
+## Installation
+
+${install}
+
+## Environment Variables
+
+${envBlock}
+
+## Configuration
+
+Copy \`.env.example\` to \`.env\`, fill secrets, then restart the development server.
 
 ## Getting Started
 
-### Prerequisites
+1. Clone the repository
+2. Install dependencies
+3. Configure environment variables
+4. Run the development command
+5. Open the local URL and verify the app boots
 
-- Runtime tooling for **${input.stack}**
-- Git
-- A package manager / build tool for your ecosystem
+## Folder Structure
 
-### Install & run
-
-${installBlock(input.stack)}
-
+${tree}
+${architectureSection}${apiSection}${authSection}
 ## Usage
 
-1. Open the project root.
-2. Configure environment variables as needed.
-3. Run the development command above.
-4. Iterate on features and regenerate docs from CodePilot when ready.
-
-## Project Structure
-
-\`\`\`text
-.
-├── src/                 # Application source
-├── docs/                # Extra documentation (optional)
-├── tests/               # Automated tests
-├── README.md            # You are here
-└── package.json / Cargo.toml / pyproject.toml
+\`\`\`bash
+# start local development
+${detected.packageManager === "pnpm" ? "pnpm dev" : detected.packageManager === "yarn" ? "yarn dev" : detected.packageManager === "bun" ? "bun dev" : detected.packageManager === "pip" ? "python main.py" : "npm run dev"}
 \`\`\`
 
-## Example Context Captured
+## Scripts
+
+| Script | Purpose |
+| --- | --- |
+| \`dev\` | Start local development |
+| \`build\` | Create a production build |
+| \`start\` | Serve the production build |
+| \`lint\` | Run static analysis |
+
+## Examples
+
+### Install
+
+${install}
+
+### Basic usage
+
+\`\`\`ts
+import { createClient } from "./src/lib/client";
+
+const client = createClient({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
+
+await client.run("hello world");
+\`\`\`
+${
+  template === "API"
+    ? `
+### API example
+
+\`\`\`bash
+curl -X POST http://localhost:3000/api/v1/resources \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"demo"}'
+\`\`\`
+`
+    : ""
+}
+
+## Screenshots Placeholder
+
+> Add product screenshots here.
 
 \`\`\`text
-${input.description.trim().slice(0, 1200)}
+[dashboard.png] · [readme-generator.png] · [code-review.png]
 \`\`\`
+
+## Roadmap
+
+- [ ] Deep repository import
+- [ ] Team workspaces
+- [ ] Billing & plans
+- [ ] Public API keys
 
 ## Contributing
 
 Pull requests are welcome. For major changes, open an issue first to discuss what you would like to change.
 
+1. Fork the repo
+2. Create your feature branch
+3. Commit with a clear message
+4. Open a pull request
+
 ## License
 
-MIT © ${year} — generated by CodePilot AI (mock mode)
+MIT © ${year}
+
+## Support
+
+- Open a GitHub issue
+- Email support@codepilot.ai
+- Check docs in \`/docs\`
+
+## Credits
+
+Built with CodePilot AI documentation tooling.
+
+## FAQ
+
+**Does this work without an OpenAI key?**  
+Yes — mock generation still produces a complete GitHub-ready README for UI and database testing.
+
+**Can I change templates?**  
+Yes — choose Professional, Open Source, Startup, Enterprise, Library, API, CLI Tool, or Portfolio before generating.
 `;
+
+  const quality = scoreFromText(input.description, sections.length);
+  const wordCount = markdown.trim().split(/\s+/).length;
+
+  return {
+    markdown,
+    projectName,
+    quality,
+    metrics: {
+      generationTimeMs: generationTimeMs,
+      wordCount,
+      sectionCount: sections.length,
+      template,
+      detectedStack: detected,
+    },
+    badges,
+    sectionsGenerated: sections,
+  };
+}
+
+/** @deprecated Prefer buildMockReadmeResult */
+export function buildMockReadme(input: GenerateReadmeInput) {
+  return buildMockReadmeResult(input).markdown;
 }

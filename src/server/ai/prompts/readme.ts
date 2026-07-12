@@ -1,18 +1,26 @@
+import type { DetectedStack } from "@/features/readme/types";
+
 export function buildReadmePrompt(input: {
   description: string;
-  stack: string;
+  template: string;
+  projectName: string;
+  detected: DetectedStack;
 }) {
-  const system = `You are CodePilot AI, an expert technical writer for open-source and SaaS projects.
+  const system = `You are CodePilot AI, an expert technical writer for premium SaaS and open-source projects.
 Generate a polished, production-ready README.md in GitHub-flavored Markdown.
 
 Rules:
-- Output ONLY Markdown (no surrounding code fences wrapping the entire document).
-- Include: title, short tagline, badges placeholders, features, tech stack, getting started, usage, project structure, scripts/commands when relevant, contributing, license.
-- Match the selected technology stack conventions.
-- Keep tone clear, premium, and developer-centric.
-- Prefer concrete commands over vague advice.`;
+- Output ONLY Markdown (no wrapping fences around the entire document).
+- Match the selected template tone and section set.
+- Include GitHub badges near the top.
+- Include: title, description, features, tech stack table, installation, requirements, environment variables, configuration, getting started, folder structure, architecture when relevant, API endpoints when relevant, authentication when relevant, usage, scripts, examples, screenshots placeholder, roadmap, contributing, license, support, credits, FAQ.
+- Prefer concrete commands based on detected package manager and stack.
+- Keep tone clear, premium, and developer-centric.`;
 
-  const user = `Technology stack: ${input.stack}
+  const user = `Template: ${input.template}
+Project name: ${input.projectName}
+Detected stack JSON:
+${JSON.stringify(input.detected, null, 2)}
 
 Project description / source context:
 """

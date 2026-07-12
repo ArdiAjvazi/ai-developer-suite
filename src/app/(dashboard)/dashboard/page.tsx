@@ -34,14 +34,14 @@ const quickActions = [
     icon: FileText,
   },
   {
-    title: "GitHub Import",
-    description: "Connect a repository",
+    title: "Repositories",
+    description: "Import & analyze GitHub repos",
     href: "/repositories",
     icon: FolderGit2,
   },
   {
     title: "PDF Reports",
-    description: "Export professional reports",
+    description: "Export branded analysis PDFs",
     href: "/reports",
     icon: FileDown,
   },

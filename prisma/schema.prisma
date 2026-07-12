@@ -16,6 +16,7 @@ enum JobType {
   REVIEW
   DOCS
   README
+  REPORT
 }
 
 enum JobStatus {
@@ -38,10 +39,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  projects Project[]
-  jobs     Job[]
+  accounts     Account[]
+  sessions     Session[]
+  projects     Project[]
+  jobs         Job[]
+  repositories Repository[]
+  settings     UserSettings?
+  auditLogs    AuditLog[]
 }
 
 model Account {
@@ -97,6 +101,38 @@ model Project {
   @@index([userId])
 }
 
+model Repository {
+  id              String    @id @default(cuid())
+  userId          String
+  githubId        String?
+  fullName        String
+  name            String
+  owner           String
+  description     String?   @db.Text
+  htmlUrl         String
+  visibility      String    @default("public")
+  defaultBranch   String    @default("main")
+  primaryLanguage String?
+  stars           Int       @default(0)
+  forks           Int       @default(0)
+  openIssues      Int       @default(0)
+  license         String?
+  sizeKb          Int       @default(0)
+  lastCommitAt    DateTime?
+  analysis        Json?
+  status          String    @default("READY")
+  mock            Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  syncedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fullName])
+  @@index([userId])
+  @@index([owner])
+}
+
 model Job {
   id         String    @id @default(cuid())
   userId     String
@@ -118,4 +154,64 @@ model Job {
   @@index([projectId])
   @@index([status])
   @@index([type])
+}
+
+model UserSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  username String?
+
+  openaiKeyEnc      String?   @db.Text
+  openaiKeyHint     String?
+  openaiValidatedAt DateTime?
+  openaiStatus      String    @default("never")
+
+  githubTokenEnc      String?   @db.Text
+  githubTokenHint     String?
+  githubValidatedAt   DateTime?
+  githubStatus        String    @default("never")
+
+  anthropicKeyEnc      String?   @db.Text
+  anthropicKeyHint     String?
+  anthropicValidatedAt DateTime?
+  anthropicStatus      String    @default("never")
+
+  aiProvider  String @default("openai")
+  aiModel     String @default("gpt-4o-mini")
+  temperature Float  @default(0.7)
+  maxTokens   Int    @default(4096)
+  language    String @default("en")
+  reviewStyle String @default("balanced")
+
+  theme            String  @default("dark")
+  sidebarCollapsed Boolean @default(false)
+  compactMode      Boolean @default(false)
+  animations       Boolean @default(true)
+  reducedMotion    Boolean @default(false)
+
+  emailNotifications      Boolean @default(true)
+  notifyReviewCompleted   Boolean @default(true)
+  notifyRepoImported      Boolean @default(true)
+  notifySecurityAlerts    Boolean @default(true)
+  notifyWeeklyReports     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }

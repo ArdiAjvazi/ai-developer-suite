@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { PlaceholderPage } from "@/shared/components/ui/placeholder-page";
+import { redirect } from "next/navigation";
+import { auth } from "@/server/auth";
+import { listDocsHistoryForUser } from "@/features/documentation/services/list-docs";
+import { DocsWorkspace } from "@/features/documentation/components/docs-workspace";
 
 export const metadata: Metadata = {
   title: "Documentation",
 };
 
-export default function DocumentationPage() {
-  return (
-    <PlaceholderPage
-      title="AI Documentation Generator"
-      description="Turn modules and repositories into structured, developer-ready documentation."
-      module="Documentation"
-    />
-  );
+export default async function DocumentationPage() {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const history = await listDocsHistoryForUser(session.user.id);
+
+  return <DocsWorkspace initialHistory={history} />;
 }

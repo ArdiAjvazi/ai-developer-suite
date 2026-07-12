@@ -67,7 +67,22 @@ export type VerificationToken = Prisma.VerificationTokenModel
  */
 export type Project = Prisma.ProjectModel
 /**
+ * Model Repository
+ * 
+ */
+export type Repository = Prisma.RepositoryModel
+/**
  * Model Job
  * 
  */
 export type Job = Prisma.JobModel
+/**
+ * Model UserSettings
+ * 
+ */
+export type UserSettings = Prisma.UserSettingsModel
+/**
+ * Model AuditLog
+ * 
+ */
+export type AuditLog = Prisma.AuditLogModel

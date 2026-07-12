@@ -39,7 +39,8 @@ export async function POST(request: Request) {
       status: result.status,
       markdown: result.markdown,
       model: result.model,
-      mock: Boolean(result.mock),
+      mock: result.mock,
+      result: result.result,
     });
   } catch (error) {
     const message =

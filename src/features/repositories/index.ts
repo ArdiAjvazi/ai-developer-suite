@@ -1,2 +1,2 @@
-/** GitHub repositories feature module — import & sync (P1). */
+/** GitHub repositories feature — import, analyze, and launch AI workflows. */
 export {};

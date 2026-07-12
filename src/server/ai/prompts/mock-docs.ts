@@ -1,0 +1,351 @@
+import type { GenerateDocsInput } from "@/features/documentation/schemas/generate-docs";
+import {
+  analyzeSource,
+  deriveDocsProjectName,
+} from "@/features/documentation/lib/analyze-source";
+import type { DocsResult } from "@/features/documentation/types";
+
+function scoreDocs(sectionCount: number, coverageUnits: number) {
+  const completeness = Math.min(98, 68 + sectionCount);
+  const readability = Math.min(96, 78 + Math.min(15, sectionCount));
+  const coverage = Math.min(97, 60 + coverageUnits * 4);
+  const maintainability = Math.min(95, 74 + Math.min(18, coverageUnits * 2));
+  const overall = Math.round(
+    (completeness + readability + coverage + maintainability) / 4,
+  );
+  return { overall, completeness, readability, coverage, maintainability };
+}
+
+/**
+ * Rich mock documentation for local testing without an OpenAI key.
+ */
+export function buildMockDocsResult(
+  input: GenerateDocsInput,
+  generationTimeMs = 850,
+): DocsResult {
+  const analysis = analyzeSource(input);
+  const projectName = deriveDocsProjectName(input);
+  const scope = input.scope ?? "Full Project";
+
+  const functionDocs = analysis.functions
+    .slice(0, 8)
+    .map((name) => {
+      return `### \`${name}\`
+
+**Purpose:** Implements core behavior for \`${name}\` within the ${analysis.language} module.
+
+**Why it exists:** Keeps business logic explicit and reusable across callers.
+
+**How to use it:** Import and call with validated inputs; handle returned values and thrown errors.
+
+| Item | Detail |
+| --- | --- |
+| Parameters | Inferred from call sites / signatures in source |
+| Return values | Domain result or side-effect confirmation |
+| Exceptions | Invalid input, missing dependencies, upstream failures |
+| Complexity | Medium |
+| Notes | Prefer typed contracts and unit coverage for this function |
+
+**Example**
+
+\`\`\`ts
+const result = await ${name}(/* args */);
+\`\`\`
+`;
+    })
+    .join("\n");
+
+  const classDocs = analysis.classes
+    .slice(0, 6)
+    .map((name) => {
+      return `### \`${name}\`
+
+**Description:** Object-oriented unit that encapsulates state and behavior for \`${name}\`.
+
+**Why it exists:** Groups related methods and properties behind a stable boundary.
+
+**How to use it:** Construct with required dependencies, then invoke public methods.
+
+- **Properties:** configuration, collaborators, internal state
+- **Methods:** public operations inferred from source
+- **Inheritance / relationships:** extends or composes domain collaborators
+- **Usage example**
+
+\`\`\`ts
+const instance = new ${name}(/* deps */);
+instance.run();
+\`\`\`
+`;
+    })
+    .join("\n");
+
+  const apiDocs =
+    analysis.endpoints.length > 0
+      ? analysis.endpoints
+          .slice(0, 8)
+          .map((endpoint) => {
+            return `### \`${endpoint.method} ${endpoint.path}\`
+
+**Description:** Handles ${endpoint.method} traffic for \`${endpoint.path}\`.
+
+**Why it exists:** Exposes a stable HTTP contract for clients and integrations.
+
+**How to use it:** Authenticate as required, send a typed request body/query, and handle status codes.
+
+| Field | Value |
+| --- | --- |
+| Method | \`${endpoint.method}\` |
+| Endpoint | \`${endpoint.path}\` |
+| Auth | Session / bearer token when protected |
+| Request | JSON body or query params |
+| Response | JSON payload |
+| Status codes | \`200\`, \`400\`, \`401\`, \`500\` |
+
+**Example**
+
+\`\`\`bash
+curl -X ${endpoint.method} http://localhost:3000${endpoint.path} \\
+  -H "Content-Type: application/json"
+\`\`\`
+`;
+          })
+          .join("\n")
+      : `### Example endpoint
+
+| Field | Value |
+| --- | --- |
+| Method | \`GET\` |
+| Endpoint | \`/api/health\` |
+| Description | Liveness check |
+| Auth | None |
+| Response | \`{ "ok": true }\` |
+`;
+
+  const dbDocs =
+    analysis.models.length > 0 || analysis.hasPrisma || analysis.hasSql
+      ? `
+## Database documentation
+
+${
+  analysis.models.length
+    ? analysis.models
+        .map(
+          (model) => `### Table / model \`${model}\`
+
+**Description:** Persists \`${model}\` records for the application domain.
+
+**Why it exists:** Provides durable state and relationships for product features.
+
+**How to use it:** Query through the ORM/repository layer; avoid raw ad-hoc writes in UI code.
+
+- Primary key: \`id\`
+- Foreign keys: related domain entities when present
+- Indexes: unique/email/status indexes as applicable
+`,
+        )
+        .join("\n")
+    : `### Schema notes
+
+Prisma/SQL structures were detected. Document tables, relationships, primary keys, foreign keys, and indexes as the schema evolves.
+`
+}
+`
+      : "";
+
+  const sections = [
+    "Project Overview",
+    "Architecture",
+    "Folder Structure",
+    "Tech Stack",
+    "Dependencies",
+    "Functions",
+    "Classes",
+    "Interfaces",
+    "Components & Hooks",
+    "API Endpoints",
+    "Database Models",
+    "Configuration",
+    "Workflow",
+    "Build Process",
+    "Deployment Notes",
+  ];
+
+  const markdown = `# ${projectName} Documentation
+
+> Generated by **CodePilot AI** · Scope: **${scope}** · Language: **${analysis.language}**
+
+## Project overview
+
+**What it does:** Documents the analyzed source for \`${projectName}\` so developers can onboard quickly.
+
+**Why it exists:** Reduces tribal knowledge by turning code structure into searchable developer docs.
+
+**How to use it:** Start with overview and architecture, then drill into functions, APIs, and data models.
+
+${input.repositoryHint ? `Repository hint: \`${input.repositoryHint}\`` : ""}
+
+Source file analyzed: \`${input.fileName ?? "source"}\`
+
+## Architecture
+
+**What it does:** Describes the high-level module boundaries inferred from the source.
+
+**Why it exists:** Helps engineers navigate responsibilities before reading every file.
+
+**How to use it:** Map features to folders, keep side effects in server layers, and keep UI presentational.
+
+- Presentation / UI layer
+- Feature/domain services
+- Persistence and integrations
+- Background jobs / async workflows (when present)
+
+## Folder structure
+
+\`\`\`text
+.
+├── src/
+│   ├── app/
+│   ├── components/
+│   ├── features/
+│   ├── lib/
+│   └── server/
+├── prisma/            # when ORM detected
+├── public/
+└── package.json
+\`\`\`
+
+## Tech stack & dependencies
+
+| Area | Detected |
+| --- | --- |
+| Language | ${analysis.language} |
+| React / UI | ${analysis.hasReact ? "Yes" : "Not clearly detected"} |
+| Prisma | ${analysis.hasPrisma ? "Yes" : "No"} |
+| SQL | ${analysis.hasSql ? "Yes" : "No"} |
+| Scope | ${scope} |
+
+## Functions
+
+${functionDocs || "_No named functions were confidently detected. Add explicit function declarations for richer docs._"}
+
+## Classes
+
+${classDocs || "_No classes detected in this snippet._"}
+
+## Interfaces & enums
+
+${
+  analysis.interfaces.length
+    ? analysis.interfaces
+        .slice(0, 10)
+        .map(
+          (name) =>
+            `- \`${name}\` — shared contract/type used across modules. **Why:** stabilizes APIs. **Use:** import and type public boundaries.`,
+        )
+        .join("\n")
+    : "_No interfaces/types detected._"
+}
+
+${
+  analysis.enums.length
+    ? `\n### Enums\n\n${analysis.enums
+        .map((name) => `- \`${name}\``)
+        .join("\n")}`
+    : ""
+}
+
+## Components & hooks
+
+${
+  analysis.hooks.length
+    ? analysis.hooks
+        .slice(0, 10)
+        .map(
+          (name) =>
+            `### \`${name}\`\n\n**What it does:** Encapsulates reusable React state/effects.\n\n**Why it exists:** Shares behavior across components without duplication.\n\n**How to use it:** Call inside React function components only.\n`,
+        )
+        .join("\n")
+    : "_No React hooks detected._"
+}
+
+## API endpoints
+
+${apiDocs}
+${dbDocs}
+## Configuration files
+
+Document environment variables, feature flags, and runtime config next to deployment notes.
+
+\`\`\`bash
+DATABASE_URL=
+AUTH_SECRET=
+OPENAI_API_KEY=
+\`\`\`
+
+## Workflow
+
+1. Install dependencies
+2. Configure environment
+3. Run local development
+4. Execute tests / lint
+5. Build and deploy
+
+## Build process
+
+Use the project package scripts (\`dev\`, \`build\`, \`start\`, \`lint\`) and keep CI aligned with the same commands.
+
+## Deployment notes
+
+- Prefer preview environments for every PR
+- Keep secrets out of the client bundle
+- Verify health endpoints after release
+
+## Source excerpt
+
+\`\`\`${String(analysis.language).toLowerCase()}
+${input.code.trim().slice(0, 1800)}
+\`\`\`
+`;
+
+  const coverageUnits =
+    analysis.functions.length +
+    analysis.classes.length +
+    analysis.endpoints.length +
+    analysis.models.length +
+    analysis.hooks.length;
+
+  const quality = scoreDocs(sections.length, Math.max(1, coverageUnits));
+  const searchIndex = [
+    projectName,
+    analysis.language,
+    ...analysis.functions,
+    ...analysis.classes,
+    ...analysis.interfaces,
+    ...analysis.hooks,
+    ...analysis.models,
+    ...analysis.endpoints.map((item) => `${item.method} ${item.path}`),
+    ...sections,
+  ];
+
+  return {
+    markdown,
+    projectName,
+    quality,
+    metrics: {
+      generationTimeMs: generationTimeMs,
+      language: String(analysis.language),
+      filesAnalyzed: 1,
+      functionsFound: analysis.functions.length,
+      classesFound: analysis.classes.length,
+      interfacesFound: analysis.interfaces.length,
+      endpointsFound: analysis.endpoints.length,
+      modelsFound: analysis.models.length,
+      documentationVersion: "1.0.0",
+      scope,
+      wordCount: markdown.trim().split(/\s+/).length,
+      sectionCount: sections.length,
+    },
+    sections,
+    searchIndex,
+  };
+}

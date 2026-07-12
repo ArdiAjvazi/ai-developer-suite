@@ -56,7 +56,10 @@ export const ModelName = {
   Session: 'Session',
   VerificationToken: 'VerificationToken',
   Project: 'Project',
-  Job: 'Job'
+  Repository: 'Repository',
+  Job: 'Job',
+  UserSettings: 'UserSettings',
+  AuditLog: 'AuditLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -139,6 +142,35 @@ export const ProjectScalarFieldEnum = {
 export type ProjectScalarFieldEnum = (typeof ProjectScalarFieldEnum)[keyof typeof ProjectScalarFieldEnum]
 
 
+export const RepositoryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  githubId: 'githubId',
+  fullName: 'fullName',
+  name: 'name',
+  owner: 'owner',
+  description: 'description',
+  htmlUrl: 'htmlUrl',
+  visibility: 'visibility',
+  defaultBranch: 'defaultBranch',
+  primaryLanguage: 'primaryLanguage',
+  stars: 'stars',
+  forks: 'forks',
+  openIssues: 'openIssues',
+  license: 'license',
+  sizeKb: 'sizeKb',
+  lastCommitAt: 'lastCommitAt',
+  analysis: 'analysis',
+  status: 'status',
+  mock: 'mock',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  syncedAt: 'syncedAt'
+} as const
+
+export type RepositoryScalarFieldEnum = (typeof RepositoryScalarFieldEnum)[keyof typeof RepositoryScalarFieldEnum]
+
+
 export const JobScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -155,6 +187,56 @@ export const JobScalarFieldEnum = {
 } as const
 
 export type JobScalarFieldEnum = (typeof JobScalarFieldEnum)[keyof typeof JobScalarFieldEnum]
+
+
+export const UserSettingsScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  username: 'username',
+  openaiKeyEnc: 'openaiKeyEnc',
+  openaiKeyHint: 'openaiKeyHint',
+  openaiValidatedAt: 'openaiValidatedAt',
+  openaiStatus: 'openaiStatus',
+  githubTokenEnc: 'githubTokenEnc',
+  githubTokenHint: 'githubTokenHint',
+  githubValidatedAt: 'githubValidatedAt',
+  githubStatus: 'githubStatus',
+  anthropicKeyEnc: 'anthropicKeyEnc',
+  anthropicKeyHint: 'anthropicKeyHint',
+  anthropicValidatedAt: 'anthropicValidatedAt',
+  anthropicStatus: 'anthropicStatus',
+  aiProvider: 'aiProvider',
+  aiModel: 'aiModel',
+  temperature: 'temperature',
+  maxTokens: 'maxTokens',
+  language: 'language',
+  reviewStyle: 'reviewStyle',
+  theme: 'theme',
+  sidebarCollapsed: 'sidebarCollapsed',
+  compactMode: 'compactMode',
+  animations: 'animations',
+  reducedMotion: 'reducedMotion',
+  emailNotifications: 'emailNotifications',
+  notifyReviewCompleted: 'notifyReviewCompleted',
+  notifyRepoImported: 'notifyRepoImported',
+  notifySecurityAlerts: 'notifySecurityAlerts',
+  notifyWeeklyReports: 'notifyWeeklyReports',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserSettingsScalarFieldEnum = (typeof UserSettingsScalarFieldEnum)[keyof typeof UserSettingsScalarFieldEnum]
+
+
+export const AuditLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  action: 'action',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
 
 
 export const SortOrder = {

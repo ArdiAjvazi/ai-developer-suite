@@ -1,2 +1,2 @@
-/** PDF Reports feature module (P3). */
+/** PDF Reports feature — generate branded analysis PDFs from reviews, docs, and repositories. */
 export {};

@@ -42,10 +42,10 @@ export const mainNav: NavItem[] = [
     description: "Craft polished READMEs",
   },
   {
-    title: "GitHub Import",
+    title: "Repositories",
     href: "/repositories",
     icon: FolderGit2,
-    description: "Import and sync repositories",
+    description: "Import, analyze, and launch AI workflows",
   },
   {
     title: "PDF Reports",

@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { PlaceholderPage } from "@/shared/components/ui/placeholder-page";
+import { redirect } from "next/navigation";
+import { auth } from "@/server/auth";
+import { listReviewHistoryForUser } from "@/features/reviews/services/list-reviews";
+import { CodeReviewWorkspace } from "@/features/reviews/components/code-review-workspace";
 
 export const metadata: Metadata = {
   title: "Code Review",
 };
 
-export default function ReviewsPage() {
-  return (
-    <PlaceholderPage
-      title="AI Code Review"
-      description="Analyze repositories and diffs for bugs, security issues, and maintainability improvements."
-      module="Code Review"
-    />
-  );
+export default async function ReviewsPage() {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const history = await listReviewHistoryForUser(session.user.id);
+
+  return <CodeReviewWorkspace initialHistory={history} />;
 }

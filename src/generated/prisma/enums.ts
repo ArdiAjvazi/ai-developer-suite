@@ -20,7 +20,8 @@ export type Role = (typeof Role)[keyof typeof Role]
 export const JobType = {
   REVIEW: 'REVIEW',
   DOCS: 'DOCS',
-  README: 'README'
+  README: 'README',
+  REPORT: 'REPORT'
 } as const
 
 export type JobType = (typeof JobType)[keyof typeof JobType]
