@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { resolveDatabaseUrl } from "@/config/env";
 
 /**
  * Bump when the Prisma schema gains models/enums so hot-reload
@@ -13,14 +14,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL is not set. Copy .env.example to .env and configure Neon/PostgreSQL.",
-    );
-  }
-
+  const connectionString = resolveDatabaseUrl();
   const adapter = new PrismaPg({ connectionString });
 
   return new PrismaClient({
