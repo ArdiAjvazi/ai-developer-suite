@@ -1,11 +1,12 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import bcrypt from "bcryptjs";
+import { compare as bcryptCompare } from "bcryptjs";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
+import { runtimeEnv } from "@/config/runtime-env";
 import { prisma } from "@/server/db";
 import { getAuthConfig } from "@/server/auth/config";
-import { prepareAuthEnv } from "@/server/auth/env";
+import { prepareAuthEnv, resolveAuthSecret } from "@/server/auth/env";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -14,35 +15,34 @@ const credentialsSchema = z.object({
 
 /**
  * Full Auth.js instance (Node runtime).
- * Lazy config ensures AUTH_SECRET / AUTH_URL are read on each request on Vercel.
  *
- * JWT sessions — credentials login never writes Session rows.
- * PrismaAdapter is only attached when GitHub OAuth is configured (account linking).
+ * - trustHost: true — required on Vercel behind proxies
+ * - secret from NEXTAUTH_SECRET (fallback AUTH_SECRET)
+ * - bcryptjs (pure JS) — avoids native `bcrypt` binary mismatches on serverless
+ * - JWT sessions; PrismaAdapter only when GitHub OAuth is configured
  */
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   prepareAuthEnv();
   const base = getAuthConfig();
+  const secret = resolveAuthSecret();
 
-  const secret = base.secret;
   if (!secret) {
     console.error(
-      "[auth] Missing AUTH_SECRET (or NEXTAUTH_SECRET). Auth.js cannot start.",
+      "[auth] Missing NEXTAUTH_SECRET / AUTH_SECRET in runtime env. Check Vercel → Settings → Environment Variables (Production, Build + Runtime).",
     );
   }
 
   const githubEnabled = Boolean(
-    process.env.AUTH_GITHUB_ID?.trim() &&
-      process.env.AUTH_GITHUB_SECRET?.trim(),
+    runtimeEnv("AUTH_GITHUB_ID") && runtimeEnv("AUTH_GITHUB_SECRET"),
   );
 
   return {
     ...base,
-    secret,
+    secret: secret ?? process.env.NEXTAUTH_SECRET,
     trustHost: true,
-    // Avoid PrismaAdapter for credentials-only — JWT sessions need no DB session table.
     ...(githubEnabled ? { adapter: PrismaAdapter(prisma) } : {}),
     session: {
-      strategy: "jwt",
+      strategy: "jwt" as const,
       maxAge: 30 * 24 * 60 * 60,
     },
     providers: [
@@ -66,6 +66,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
 
             const user = await prisma.user.findUnique({
               where: { email },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                image: true,
+                role: true,
+                passwordHash: true,
+              },
             });
 
             if (!user?.passwordHash) {
@@ -73,18 +81,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
               return null;
             }
 
-            const valid = await bcrypt.compare(password, user.passwordHash);
+            // bcryptjs — pure JavaScript, safe on Vercel serverless (no native addon).
+            const valid = await bcryptCompare(password, user.passwordHash);
             if (!valid) {
               console.warn("[auth] credentials: invalid password");
               return null;
             }
 
+            // Plain serializable user object only (no Date / Prisma class instances).
             return {
-              id: user.id,
+              id: String(user.id),
               email: user.email,
-              name: user.name,
-              image: user.image,
-              role: user.role,
+              name: user.name ?? undefined,
+              image: user.image ?? undefined,
+              role: user.role === "ADMIN" ? "ADMIN" : "USER",
             };
           } catch (error) {
             console.error("[auth] credentials authorize failed", error);

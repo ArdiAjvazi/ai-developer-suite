@@ -1,19 +1,14 @@
 import type { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import type { Provider } from "next-auth/providers";
-import { prepareAuthEnv } from "@/server/auth/env";
-
-function resolveAuthSecret(): string | undefined {
-  const secret =
-    process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim();
-  return secret || undefined;
-}
+import { runtimeEnv } from "@/config/runtime-env";
+import { prepareAuthEnv, resolveAuthSecret } from "@/server/auth/env";
 
 function buildProviders(): Provider[] {
   const providers: Provider[] = [];
 
-  const githubId = process.env.AUTH_GITHUB_ID?.trim();
-  const githubSecret = process.env.AUTH_GITHUB_SECRET?.trim();
+  const githubId = runtimeEnv("AUTH_GITHUB_ID");
+  const githubSecret = runtimeEnv("AUTH_GITHUB_SECRET");
 
   if (githubId && githubSecret) {
     providers.push(
@@ -30,16 +25,15 @@ function buildProviders(): Provider[] {
 
 /**
  * Edge-safe Auth.js config factory (no Prisma / Node-only imports).
- * Must be a factory so AUTH_SECRET is read per-request on Vercel.
  */
 export function getAuthConfig(): NextAuthConfig {
   prepareAuthEnv();
 
   return {
+    // Explicit secret — required on Vercel; prefer NEXTAUTH_SECRET.
     secret: resolveAuthSecret(),
     trustHost: true,
-    // Set AUTH_DEBUG=false once login is stable.
-    debug: process.env.AUTH_DEBUG !== "false",
+    debug: runtimeEnv("AUTH_DEBUG") !== "false",
     pages: {
       signIn: "/login",
       error: "/login",
@@ -66,24 +60,32 @@ export function getAuthConfig(): NextAuthConfig {
         return isLoggedIn;
       },
       jwt({ token, user }) {
+        // Keep JWT payload JSON-serializable primitives only.
         if (user) {
-          token.id = user.id ?? token.sub;
-          token.role = user.role ?? "USER";
+          token.id = user.id ? String(user.id) : token.sub;
+          token.role = user.role === "ADMIN" ? "ADMIN" : "USER";
         }
         if (!token.id && token.sub) {
-          token.id = token.sub;
+          token.id = String(token.sub);
         }
-        if (!token.role) {
+        if (token.role !== "ADMIN" && token.role !== "USER") {
           token.role = "USER";
         }
         return token;
       },
       session({ session, token }) {
-        if (session.user) {
-          session.user.id = (token.id as string) || (token.sub as string) || "";
-          session.user.role = (token.role as "USER" | "ADMIN") ?? "USER";
-        }
-        return session;
+        // Return a fresh plain object — never mutate with non-serializable values.
+        const role = token.role === "ADMIN" ? "ADMIN" : "USER";
+        return {
+          expires: session.expires,
+          user: {
+            id: String(token.id ?? token.sub ?? ""),
+            role,
+            name: session.user?.name ?? null,
+            email: session.user?.email ?? null,
+            image: session.user?.image ?? null,
+          },
+        };
       },
     },
     session: {

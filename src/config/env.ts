@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { runtimeEnv } from "@/config/runtime-env";
 
 const BUILD_PLACEHOLDER_DATABASE_URL =
   "postgresql://build:build@127.0.0.1:5432/build?schema=public";
@@ -27,22 +28,18 @@ export function isNextBuildPhase(): boolean {
 
 /**
  * Resolve DATABASE_URL for Prisma / server bootstrapping.
- * During Next/Vercel production builds the var can be unavailable while
- * collecting page data — use a non-connecting placeholder so imports succeed.
- * Prefer a real DATABASE_URL whenever it is present.
+ * Uses dynamic env access so Next.js cannot bake an empty value at build time.
  */
 export function resolveDatabaseUrl(): string {
-  const configured = process.env.DATABASE_URL?.trim();
+  const configured = runtimeEnv("DATABASE_URL");
   if (configured) return sanitizeDatabaseUrl(configured);
 
-  // Placeholder only during Next build — never at Vercel runtime (VERCEL=1
-  // is true in production and would silently break Auth/Prisma otherwise).
   if (isNextBuildPhase()) {
     return BUILD_PLACEHOLDER_DATABASE_URL;
   }
 
   throw new Error(
-    "DATABASE_URL is not set. Copy .env.example to .env and configure Neon/PostgreSQL.",
+    "DATABASE_URL is not set. In Vercel: Settings → Environment Variables → add DATABASE_URL for Production (Build + Runtime), then Redeploy.",
   );
 }
 

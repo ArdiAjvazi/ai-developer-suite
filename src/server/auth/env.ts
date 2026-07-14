@@ -1,17 +1,17 @@
+import { runtimeEnv } from "@/config/runtime-env";
+
 /**
- * Normalize Auth.js / Prisma runtime env before NextAuth reads process.env.
+ * Normalize Auth.js env before NextAuth reads process.env.
  * Bad AUTH_URL values crash next-auth's reqWithEnvURL (unhandled new URL()).
  * Localhost AUTH_URL on Vercel rewrites redirects to the wrong host after login.
  */
 export function prepareAuthEnv(): void {
-  const raw = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
+  const raw = runtimeEnv("AUTH_URL") ?? runtimeEnv("NEXTAUTH_URL");
 
-  const clean = raw?.replace(/^["']|["']$/g, "").trim();
   let parsed: URL | null = null;
-
-  if (clean) {
+  if (raw) {
     try {
-      parsed = new URL(clean);
+      parsed = new URL(raw);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         parsed = null;
       }
@@ -20,10 +20,10 @@ export function prepareAuthEnv(): void {
     }
   }
 
-  const onVercel = process.env.VERCEL === "1";
+  const onVercel = runtimeEnv("VERCEL") === "1";
   const vercelHost =
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/^https?:\/\//, "") ||
-    process.env.VERCEL_URL;
+    runtimeEnv("VERCEL_PROJECT_PRODUCTION_URL")?.replace(/^https?:\/\//, "") ||
+    runtimeEnv("VERCEL_URL");
 
   const isLocalhost =
     !!parsed &&
@@ -48,8 +48,13 @@ export function prepareAuthEnv(): void {
     return;
   }
 
-  // Auth.js should get origin only; a path becomes basePath and breaks /api/auth.
+  // Origin only — a path becomes basePath and breaks /api/auth.
   const origin = parsed.origin;
   process.env.AUTH_URL = origin;
   process.env.NEXTAUTH_URL = origin;
+}
+
+/** Prefer NEXTAUTH_SECRET, then AUTH_SECRET (Auth.js v5 accepts either). */
+export function resolveAuthSecret(): string | undefined {
+  return runtimeEnv("NEXTAUTH_SECRET") ?? runtimeEnv("AUTH_SECRET");
 }
