@@ -22,7 +22,9 @@ export function resolveDatabaseUrl(): string {
   const configured = process.env.DATABASE_URL?.trim();
   if (configured) return configured;
 
-  if (isNextBuildPhase() || process.env.VERCEL === "1") {
+  // Placeholder only during Next build — never at Vercel runtime (VERCEL=1
+  // is true in production and would silently break Auth/Prisma otherwise).
+  if (isNextBuildPhase()) {
     return BUILD_PLACEHOLDER_DATABASE_URL;
   }
 

@@ -17,9 +17,16 @@ export function LoginForm({ githubEnabled }: LoginFormProps) {
 
   const [email, setEmail] = useState("demo@codepilot.ai");
   const [password, setPassword] = useState("password123");
-  const [error, setError] = useState<string | null>(
-    errorParam ? "Authentication failed. Please try again." : null,
-  );
+  const [error, setError] = useState<string | null>(() => {
+    if (!errorParam) return null;
+    if (errorParam === "Configuration") {
+      return "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL). Check Vercel env vars.";
+    }
+    if (errorParam === "OAuthCallback" || errorParam === "OAuthSignin") {
+      return "OAuth provider failed. Verify GitHub callback URL matches this domain.";
+    }
+    return `Authentication failed (${errorParam}). Please try again.`;
+  });
   const [pending, setPending] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -37,7 +44,13 @@ export function LoginForm({ githubEnabled }: LoginFormProps) {
     setPending(false);
 
     if (result?.error) {
-      setError("Invalid email or password.");
+      if (result.error === "Configuration") {
+        setError(
+          "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL). Check Vercel env vars.",
+        );
+      } else {
+        setError("Invalid email or password.");
+      }
       return;
     }
 

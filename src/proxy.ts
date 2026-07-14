@@ -1,11 +1,12 @@
 import NextAuth from "next-auth";
-import { authConfig } from "@/server/auth/config";
+import { getAuthConfig } from "@/server/auth/config";
 
 /**
  * Next.js 16 Proxy (formerly middleware).
- * Uses the Edge-safe auth config — never import Prisma here.
+ * Uses the Edge-safe auth config factory — never import Prisma here.
+ * Lazy init so AUTH_SECRET is read from the Edge runtime env on each invoke.
  */
-const { auth } = NextAuth(authConfig);
+const { auth } = NextAuth(() => getAuthConfig());
 
 export default auth;
 
