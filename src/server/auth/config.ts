@@ -23,11 +23,27 @@ function buildProviders(): Provider[] {
  * Used by `src/proxy.ts` and merged into the full auth instance.
  */
 export const authConfig = {
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  trustHost: true,
   pages: {
     signIn: "/login",
     error: "/login",
   },
   providers: buildProviders(),
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-authjs.session-token"
+          : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
@@ -64,5 +80,4 @@ export const authConfig = {
   session: {
     strategy: "jwt",
   },
-  trustHost: true,
 } satisfies NextAuthConfig;
