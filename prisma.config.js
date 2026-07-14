@@ -3,8 +3,10 @@
  *
  * Never use `env("DATABASE_URL")` from `prisma/config`: it throws
  * PrismaConfigEnvError during install/generate when the var is unset.
- * A placeholder URL is fine for `prisma generate` (no DB connection).
+ * Load `.env` so local CLI commands (db push / migrate) see DATABASE_URL.
  */
+require("dotenv").config({ override: true });
+
 module.exports = {
   schema: "prisma/schema.prisma",
   migrations: {
