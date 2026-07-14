@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 /**
  * Non-secret auth diagnostics for Vercel debugging.
  * Does not expose secret values — only presence / host checks.
+ * Force clean production redeploy to rebuild env cache.
  */
 export async function GET() {
   const authUrl = runtimeEnv("AUTH_URL") ?? runtimeEnv("NEXTAUTH_URL") ?? null;
