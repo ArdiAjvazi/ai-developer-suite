@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import type { Provider } from "next-auth/providers";
+import { prepareAuthEnv } from "@/server/auth/env";
 
 function resolveAuthSecret(): string | undefined {
   const secret =
@@ -29,14 +30,14 @@ function buildProviders(): Provider[] {
 
 /**
  * Edge-safe Auth.js config factory (no Prisma / Node-only imports).
- * Must be a factory so AUTH_SECRET is read per-request on Vercel — a static
- * NextAuth({...}) call can bake an empty secret during build/import.
+ * Must be a factory so AUTH_SECRET is read per-request on Vercel.
  */
 export function getAuthConfig(): NextAuthConfig {
+  prepareAuthEnv();
+
   return {
     secret: resolveAuthSecret(),
     trustHost: true,
-    // Enabled so Vercel function logs show Auth.js configuration errors.
     // Set AUTH_DEBUG=false once login is stable.
     debug: process.env.AUTH_DEBUG !== "false",
     pages: {
@@ -51,7 +52,9 @@ export function getAuthConfig(): NextAuthConfig {
 
         const isAuthRoute =
           pathname.startsWith("/login") || pathname.startsWith("/api/auth");
-        const isPublicRoute = pathname === "/" || isAuthRoute;
+        const isHealthRoute = pathname.startsWith("/api/health");
+        const isPublicRoute =
+          pathname === "/" || isAuthRoute || isHealthRoute;
 
         if (isPublicRoute) {
           if (isLoggedIn && pathname.startsWith("/login")) {
@@ -64,14 +67,20 @@ export function getAuthConfig(): NextAuthConfig {
       },
       jwt({ token, user }) {
         if (user) {
-          token.id = user.id;
-          token.role = user.role;
+          token.id = user.id ?? token.sub;
+          token.role = user.role ?? "USER";
+        }
+        if (!token.id && token.sub) {
+          token.id = token.sub;
+        }
+        if (!token.role) {
+          token.role = "USER";
         }
         return token;
       },
       session({ session, token }) {
         if (session.user) {
-          session.user.id = token.id as string;
+          session.user.id = (token.id as string) || (token.sub as string) || "";
           session.user.role = (token.role as "USER" | "ADMIN") ?? "USER";
         }
         return session;
@@ -79,6 +88,7 @@ export function getAuthConfig(): NextAuthConfig {
     },
     session: {
       strategy: "jwt",
+      maxAge: 30 * 24 * 60 * 60,
     },
   };
 }

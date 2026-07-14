@@ -29,33 +29,68 @@ export function LoginForm({ githubEnabled }: LoginFormProps) {
   });
   const [pending, setPending] = useState(false);
 
+  function resolvePostLoginPath(resultUrl: string | null | undefined) {
+    const fallback =
+      callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+        ? callbackUrl
+        : "/dashboard";
+
+    if (!resultUrl) return fallback;
+
+    try {
+      if (resultUrl.startsWith("/") && !resultUrl.startsWith("//")) {
+        return resultUrl;
+      }
+
+      const url = new URL(resultUrl);
+      // Ignore AUTH_URL mismatches (e.g. localhost / wrong Vercel host).
+      if (url.origin === window.location.origin) {
+        return `${url.pathname}${url.search}${url.hash}` || fallback;
+      }
+    } catch {
+      // fall through
+    }
+
+    return fallback;
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError(null);
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-      callbackUrl,
-    });
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl:
+          callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+            ? `${window.location.origin}${callbackUrl}`
+            : callbackUrl,
+      });
 
-    setPending(false);
-
-    if (result?.error) {
-      if (result.error === "Configuration") {
-        setError(
-          "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL). Check Vercel env vars.",
-        );
-      } else {
-        setError("Invalid email or password.");
+      if (result?.error) {
+        if (result.error === "Configuration") {
+          setError(
+            "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL). Check Vercel env vars.",
+          );
+        } else {
+          setError("Invalid email or password.");
+        }
+        return;
       }
-      return;
-    }
 
-    router.push(result?.url ?? callbackUrl);
-    router.refresh();
+      router.push(resolvePostLoginPath(result?.url));
+      router.refresh();
+    } catch (err) {
+      console.error("[login] signIn failed", err);
+      setError(
+        "Login request failed (server error). Check AUTH_URL and AUTH_SECRET on Vercel.",
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   return (

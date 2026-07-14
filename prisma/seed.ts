@@ -1,12 +1,21 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+
+// Prefer .env over any stale shell DATABASE_URL (common when switching to Neon).
+loadEnv({ override: true });
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is required to seed the database.");
+  }
+
+  if (!/neon\.tech/i.test(connectionString) && process.env.ALLOW_NON_NEON_SEED !== "1") {
+    console.warn(
+      "[seed] DATABASE_URL does not look like Neon. Continuing anyway (set ALLOW_NON_NEON_SEED=1 to silence).",
+    );
   }
 
   const adapter = new PrismaPg({ connectionString });

@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { getAuthConfig } from "@/server/auth/config";
+import { prepareAuthEnv } from "@/server/auth/env";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -13,17 +14,13 @@ const credentialsSchema = z.object({
 
 /**
  * Full Auth.js instance (Node runtime).
- * Lazy config ensures AUTH_SECRET / AUTH_URL are read on each request on Vercel
- * instead of being frozen at module import / build time.
+ * Lazy config ensures AUTH_SECRET / AUTH_URL are read on each request on Vercel.
  *
- * JWT sessions avoid PrismaAdapter session-table writes for credentials login.
- * Adapter remains for OAuth account linking when GitHub is configured.
- *
- * GitHub callback URL (OAuth App → Authorization callback URL):
- *   https://<your-vercel-host>/api/auth/callback/github
- * e.g. https://ai-developer-suite.vercel.app/api/auth/callback/github
+ * JWT sessions — credentials login never writes Session rows.
+ * PrismaAdapter is only attached when GitHub OAuth is configured (account linking).
  */
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
+  prepareAuthEnv();
   const base = getAuthConfig();
 
   const secret = base.secret;
@@ -31,15 +28,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
     console.error(
       "[auth] Missing AUTH_SECRET (or NEXTAUTH_SECRET). Auth.js cannot start.",
     );
-  } else {
-    console.info("[auth] Auth.js config loaded (secret present, trustHost=true)");
   }
+
+  const githubEnabled = Boolean(
+    process.env.AUTH_GITHUB_ID?.trim() &&
+      process.env.AUTH_GITHUB_SECRET?.trim(),
+  );
 
   return {
     ...base,
     secret,
     trustHost: true,
-    adapter: PrismaAdapter(prisma),
+    // Avoid PrismaAdapter for credentials-only — JWT sessions need no DB session table.
+    ...(githubEnabled ? { adapter: PrismaAdapter(prisma) } : {}),
     session: {
       strategy: "jwt",
       maxAge: 30 * 24 * 60 * 60,

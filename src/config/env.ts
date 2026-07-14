@@ -3,6 +3,19 @@ import { z } from "zod";
 const BUILD_PLACEHOLDER_DATABASE_URL =
   "postgresql://build:build@127.0.0.1:5432/build?schema=public";
 
+/** Neon + node-pg: channel_binding=require often breaks serverless clients. */
+export function sanitizeDatabaseUrl(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    if (url.searchParams.get("channel_binding") === "require") {
+      url.searchParams.delete("channel_binding");
+    }
+    return url.toString();
+  } catch {
+    return connectionString.replace(/([&?])channel_binding=require&?/g, "$1");
+  }
+}
+
 /** True while Next.js is compiling / collecting page data. */
 export function isNextBuildPhase(): boolean {
   return (
@@ -20,7 +33,7 @@ export function isNextBuildPhase(): boolean {
  */
 export function resolveDatabaseUrl(): string {
   const configured = process.env.DATABASE_URL?.trim();
-  if (configured) return configured;
+  if (configured) return sanitizeDatabaseUrl(configured);
 
   // Placeholder only during Next build — never at Vercel runtime (VERCEL=1
   // is true in production and would silently break Auth/Prisma otherwise).
