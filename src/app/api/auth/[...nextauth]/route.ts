@@ -7,19 +7,25 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function missingEnvResponse() {
+  // Hydrate from build snapshot before checking.
+  const secret = resolveAuthSecret();
+  const databaseUrl = runtimeEnv("DATABASE_URL");
+
   const missing = [
-    !resolveAuthSecret() ? "NEXTAUTH_SECRET|AUTH_SECRET" : null,
-    !runtimeEnv("DATABASE_URL") ? "DATABASE_URL" : null,
+    !secret ? "NEXTAUTH_SECRET|AUTH_SECRET" : null,
+    !databaseUrl ? "DATABASE_URL" : null,
   ].filter(Boolean);
 
   if (missing.length === 0) return null;
+
+  console.error("[auth-route] Missing runtime env:", missing.join(", "));
 
   return Response.json(
     {
       message:
         "There was a problem with the server configuration. Check the server logs for more information.",
       missing,
-      hint: "Vercel → Project Settings → Environment Variables: set these for Production with Build + Runtime enabled, then Redeploy.",
+      hint: "Vercel → Project Settings → Environment Variables: set these for Production with Build + Runtime enabled, then Redeploy. Build logs should show [snapshot-runtime-env].",
     },
     { status: 500 },
   );
