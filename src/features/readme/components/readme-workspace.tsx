@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -21,7 +21,6 @@ import {
 } from "@/features/readme/schemas/generate-readme";
 import {
   detectProjectStack,
-  deriveProjectName,
 } from "@/features/readme/lib/detect-stack";
 import { MarkdownPreview } from "@/shared/components/ui/markdown-preview";
 import { ReadmeQualityScore } from "@/features/readme/components/readme-quality-score";
@@ -82,14 +81,6 @@ export function ReadmeWorkspace({ initialHistory }: ReadmeWorkspaceProps) {
     () => detectProjectStack(description),
     [description],
   );
-
-  useEffect(() => {
-    if (!projectName.trim()) {
-      setProjectName(deriveProjectName(description));
-    }
-    // only seed empty name
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const canGenerate = description.trim().length >= 20 && !pending;
 

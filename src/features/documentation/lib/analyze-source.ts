@@ -31,7 +31,7 @@ export function analyzeSource(input: GenerateDocsInput): CodeAnalysisSummary {
     ? detectLanguageFromFileName(input.fileName)
     : null;
 
-  let language =
+  const language =
     input.language !== "Auto-detect"
       ? input.language
       : fromFile ??

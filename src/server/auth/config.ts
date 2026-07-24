@@ -1,14 +1,14 @@
 import type { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import type { Provider } from "next-auth/providers";
-import { runtimeEnv } from "@/config/runtime-env";
-import { prepareAuthEnv, resolveAuthSecretForConfig } from "@/server/auth/env";
+import { getEnv } from "@/config/runtime-env";
+import { prepareAuthEnv, resolveAuthSecret } from "@/server/auth/env";
 
 function buildProviders(): Provider[] {
   const providers: Provider[] = [];
 
-  const githubId = runtimeEnv("AUTH_GITHUB_ID");
-  const githubSecret = runtimeEnv("AUTH_GITHUB_SECRET");
+  const githubId = getEnv("AUTH_GITHUB_ID");
+  const githubSecret = getEnv("AUTH_GITHUB_SECRET");
 
   if (githubId && githubSecret) {
     providers.push(
@@ -24,17 +24,19 @@ function buildProviders(): Provider[] {
 }
 
 /**
- * Edge-safe Auth.js config factory (no Prisma / Node-only imports).
+ * Edge-safe Auth.js config (no Prisma).
+ * Used by `src/proxy.ts` and merged into the Node auth instance.
  */
 export function getAuthConfig(): NextAuthConfig {
   prepareAuthEnv();
 
+  const secret = resolveAuthSecret();
+
   return {
-    // AUTH_SECRET || NEXTAUTH_SECRET || build fallback — never undefined at init.
-    secret: resolveAuthSecretForConfig(),
+    // Only set when present — never invent a fake build secret.
+    ...(secret ? { secret } : {}),
     trustHost: true,
-    // Opt-in only — Auth.js debug mode surfaces as a Next.js "1 Issue" badge.
-    debug: runtimeEnv("AUTH_DEBUG") === "true",
+    debug: getEnv("AUTH_DEBUG") === "true",
     pages: {
       signIn: "/login",
       error: "/login",

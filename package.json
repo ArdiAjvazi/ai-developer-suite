@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --schema=prisma/schema.prisma && node scripts/snapshot-runtime-env.mjs && next build",
+    "build": "prisma generate --schema=prisma/schema.prisma && next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate --schema=prisma/schema.prisma",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

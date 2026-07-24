@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-locked*/
 /out/
 
 # production
@@ -23,6 +24,7 @@
 # misc
 .DS_Store
 *.pem
+.runtime-env.json
 
 # debug
 npm-debug.log*
@@ -33,7 +35,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-.runtime-env.json
 
 # vercel
 .vercel

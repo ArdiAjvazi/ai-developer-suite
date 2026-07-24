@@ -1,3 +1,5 @@
+import { getEnv } from "@/config/runtime-env";
+
 const PLACEHOLDER_KEYS = new Set([
   "",
   "sk-replace-me",
@@ -7,7 +9,7 @@ const PLACEHOLDER_KEYS = new Set([
 ]);
 
 export function isOpenAiConfigured() {
-  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+  const apiKey = getEnv("OPENAI_API_KEY") ?? "";
   return apiKey.length > 0 && !PLACEHOLDER_KEYS.has(apiKey);
 }
 
@@ -31,12 +33,12 @@ export async function createChatCompletion(
     );
   }
 
-  const apiKey = process.env.OPENAI_API_KEY!;
-  const baseUrl = (
-    process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1"
-  ).replace(/\/$/, "");
-  const model =
-    options?.model ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  const apiKey = getEnv("OPENAI_API_KEY")!;
+  const baseUrl = (getEnv("OPENAI_BASE_URL") ?? "https://api.openai.com/v1").replace(
+    /\/$/,
+    "",
+  );
+  const model = options?.model ?? getEnv("OPENAI_MODEL") ?? "gpt-4o-mini";
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",

@@ -1,10 +1,11 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { getEnv } from "@/config/runtime-env";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.SETTINGS_ENCRYPTION_KEY?.trim();
+  const secret = getEnv("SETTINGS_ENCRYPTION_KEY");
   if (!secret || secret.length < 32) {
     throw new Error(
       "SETTINGS_ENCRYPTION_KEY must be set to a secret of at least 32 characters.",

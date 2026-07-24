@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { LoginForm } from "@/features/auth/components/login-form";
+import { getEnv } from "@/config/runtime-env";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   const githubEnabled = Boolean(
-    process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET,
+    getEnv("AUTH_GITHUB_ID") && getEnv("AUTH_GITHUB_SECRET"),
   );
 
   return (

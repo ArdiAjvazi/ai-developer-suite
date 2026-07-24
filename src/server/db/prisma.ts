@@ -1,13 +1,8 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 import { resolveDatabaseUrl } from "@/config/env";
-import { hydrateRuntimeEnvFromSnapshot } from "@/config/runtime-env.node";
 
-/**
- * Bump when the Prisma schema gains models/enums so hot-reload
- * discards stale singleton clients from earlier generates.
- */
-const PRISMA_CLIENT_GENERATION = 5;
+const PRISMA_CLIENT_GENERATION = 6;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -15,7 +10,6 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  hydrateRuntimeEnvFromSnapshot();
   const connectionString = resolveDatabaseUrl();
   const adapter = new PrismaPg({ connectionString });
 
@@ -75,8 +69,8 @@ function getPrismaClient() {
 }
 
 /**
- * Lazy Prisma proxy — importing this module must not throw when DATABASE_URL
- * is missing (that previously crashed the entire Auth.js route on Vercel).
+ * Lazy Prisma proxy — module import never connects / never requires DATABASE_URL.
+ * URL is read on first query via getEnv (dynamic, runtime-safe).
  */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop, receiver) {

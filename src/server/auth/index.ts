@@ -3,14 +3,10 @@ import { compare as bcryptCompare } from "bcryptjs";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
-import { runtimeEnv } from "@/config/runtime-env";
+import { getEnv } from "@/config/runtime-env";
 import { prisma } from "@/server/db";
 import { getAuthConfig } from "@/server/auth/config";
-import {
-  prepareAuthEnv,
-  resolveAuthSecret,
-  resolveAuthSecretForConfig,
-} from "@/server/auth/env";
+import { prepareAuthEnv, resolveAuthSecret } from "@/server/auth/env";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -18,30 +14,24 @@ const credentialsSchema = z.object({
 });
 
 /**
- * Full Auth.js instance (Node runtime).
+ * Auth.js v5 (NextAuth) — Node runtime, lazy config.
  *
- * Lazy config avoids throwing at import/build when secrets are unresolved.
- * secret: AUTH_SECRET || NEXTAUTH_SECRET || build fallback
+ * Env is read inside the factory on each auth request so Turbopack cannot
+ * bake empty AUTH_SECRET / DATABASE_URL values from build time.
+ * JWT sessions; PrismaAdapter only when GitHub OAuth is configured.
  */
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   prepareAuthEnv();
   const base = getAuthConfig();
-  const secret = resolveAuthSecretForConfig();
-  const hasRealSecret = Boolean(resolveAuthSecret());
-
-  if (!hasRealSecret) {
-    console.error(
-      "[auth] Using build fallback secret — set AUTH_SECRET or NEXTAUTH_SECRET for Production.",
-    );
-  }
+  const secret = resolveAuthSecret();
 
   const githubEnabled = Boolean(
-    runtimeEnv("AUTH_GITHUB_ID") && runtimeEnv("AUTH_GITHUB_SECRET"),
+    getEnv("AUTH_GITHUB_ID") && getEnv("AUTH_GITHUB_SECRET"),
   );
 
   return {
     ...base,
-    secret,
+    ...(secret ? { secret } : {}),
     trustHost: true,
     ...(githubEnabled ? { adapter: PrismaAdapter(prisma) } : {}),
     session: {
@@ -80,13 +70,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
             });
 
             if (!user?.passwordHash) {
-              console.warn("[auth] credentials: user not found or no password");
               return null;
             }
 
             const valid = await bcryptCompare(password, user.passwordHash);
             if (!valid) {
-              console.warn("[auth] credentials: invalid password");
               return null;
             }
 

@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
   "installCommand": "npm install --ignore-scripts",
-  "buildCommand": "prisma generate --schema=prisma/schema.prisma && node scripts/snapshot-runtime-env.mjs && next build"
+  "buildCommand": "prisma generate --schema=prisma/schema.prisma && next build"
 }

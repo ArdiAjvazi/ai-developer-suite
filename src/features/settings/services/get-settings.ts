@@ -1,9 +1,5 @@
 import { prisma } from "@/server/db/prisma";
-import {
-  maskSecret,
-  secretHint,
-  encryptSecret,
-} from "@/server/security/secret-crypto";
+import { maskSecret } from "@/server/security/secret-crypto";
 import { ensureUserSettings } from "@/features/settings/services/ensure-settings";
 import type {
   ApiKeyPublicState,

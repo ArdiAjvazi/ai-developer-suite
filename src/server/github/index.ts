@@ -14,6 +14,7 @@ import type {
   RepoTreeNode,
 } from "@/features/repositories/types";
 import type { FetchedRepositoryPayload } from "@/features/repositories/lib/mock-repository";
+import { getEnv } from "@/config/runtime-env";
 
 type GhRepo = {
   id: number;
@@ -45,7 +46,8 @@ function githubHeaders(): HeadersInit {
     "User-Agent": "CodePilot-AI",
     "X-GitHub-Api-Version": "2022-11-28",
   };
-  const token = process.env.GITHUB_TOKEN?.trim();
+
+  const token = getEnv("GITHUB_TOKEN");
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
@@ -445,7 +447,7 @@ export async function fetchRepositoryByUrl(
     );
   }
 
-  if (options?.forceMock || process.env.GITHUB_FORCE_MOCK === "true") {
+  if (options?.forceMock || getEnv("GITHUB_FORCE_MOCK") === "true") {
     return buildMockRepository(parsed);
   }
 
