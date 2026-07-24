@@ -1,18 +1,20 @@
 import type { NextRequest } from "next/server";
+import { hydrateRuntimeEnvFromSnapshot } from "@/config/runtime-env.node";
+import { runtimeEnv } from "@/config/runtime-env";
 import { handlers } from "@/server/auth";
 import { resolveAuthSecret } from "@/server/auth/env";
-import { runtimeEnv } from "@/config/runtime-env";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function missingEnvResponse() {
-  // Hydrate from build snapshot before checking.
+  hydrateRuntimeEnvFromSnapshot();
+
   const secret = resolveAuthSecret();
   const databaseUrl = runtimeEnv("DATABASE_URL");
 
   const missing = [
-    !secret ? "NEXTAUTH_SECRET|AUTH_SECRET" : null,
+    !secret ? "AUTH_SECRET|NEXTAUTH_SECRET" : null,
     !databaseUrl ? "DATABASE_URL" : null,
   ].filter(Boolean);
 
@@ -37,7 +39,6 @@ async function withEnvGuard(
 ) {
   const blocked = missingEnvResponse();
   if (blocked) {
-    console.error("[auth-route] Missing runtime env");
     return blocked;
   }
 

@@ -9,6 +9,9 @@
  */
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ override: true });
 
 const KEYS = [
   "DATABASE_URL",

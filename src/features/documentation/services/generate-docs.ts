@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { ensureDefaultProject } from "@/server/db/ensure-default-project";
 import { createChatCompletion, isOpenAiConfigured } from "@/server/ai/client";
 import { buildDocsPrompt } from "@/server/ai/prompts/docs";
 import { buildMockDocsResult } from "@/server/ai/prompts/mock-docs";
@@ -8,23 +9,6 @@ import {
   analyzeSource,
   deriveDocsProjectName,
 } from "@/features/documentation/lib/analyze-source";
-
-async function ensureDefaultProject(userId: string) {
-  const existing = await prisma.project.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (existing) return existing;
-
-  return prisma.project.create({
-    data: {
-      userId,
-      name: "Default Project",
-      description: "Auto-created workspace project",
-    },
-  });
-}
 
 function stripWrappingFences(content: string) {
   const trimmed = content.trim();

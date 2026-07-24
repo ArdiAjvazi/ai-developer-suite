@@ -2,7 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import type { Provider } from "next-auth/providers";
 import { runtimeEnv } from "@/config/runtime-env";
-import { prepareAuthEnv, resolveAuthSecret } from "@/server/auth/env";
+import { prepareAuthEnv, resolveAuthSecretForConfig } from "@/server/auth/env";
 
 function buildProviders(): Provider[] {
   const providers: Provider[] = [];
@@ -30,10 +30,11 @@ export function getAuthConfig(): NextAuthConfig {
   prepareAuthEnv();
 
   return {
-    // Explicit secret — required on Vercel; prefer NEXTAUTH_SECRET.
-    secret: resolveAuthSecret(),
+    // AUTH_SECRET || NEXTAUTH_SECRET || build fallback — never undefined at init.
+    secret: resolveAuthSecretForConfig(),
     trustHost: true,
-    debug: runtimeEnv("AUTH_DEBUG") !== "false",
+    // Opt-in only — Auth.js debug mode surfaces as a Next.js "1 Issue" badge.
+    debug: runtimeEnv("AUTH_DEBUG") === "true",
     pages: {
       signIn: "/login",
       error: "/login",
@@ -60,7 +61,6 @@ export function getAuthConfig(): NextAuthConfig {
         return isLoggedIn;
       },
       jwt({ token, user }) {
-        // Keep JWT payload JSON-serializable primitives only.
         if (user) {
           token.id = user.id ? String(user.id) : token.sub;
           token.role = user.role === "ADMIN" ? "ADMIN" : "USER";
@@ -74,7 +74,6 @@ export function getAuthConfig(): NextAuthConfig {
         return token;
       },
       session({ session, token }) {
-        // Return a fresh plain object — never mutate with non-serializable values.
         const role = token.role === "ADMIN" ? "ADMIN" : "USER";
         return {
           expires: session.expires,

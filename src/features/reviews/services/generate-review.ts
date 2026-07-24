@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { ensureDefaultProject } from "@/server/db/ensure-default-project";
 import { createChatCompletion, isOpenAiConfigured } from "@/server/ai/client";
 import { buildCodeReviewPrompt } from "@/server/ai/prompts/review";
 import { buildMockCodeReview } from "@/server/ai/prompts/mock-review";
@@ -6,25 +7,6 @@ import type { GenerateReviewInput } from "@/features/reviews/schemas/generate-re
 import type { CodeReviewResult } from "@/features/reviews/types";
 import { parseReviewResultJson } from "@/features/reviews/lib/parse-review-result";
 import { countLines } from "@/features/reviews/lib/review-metrics";
-
-async function ensureDefaultProject(userId: string) {
-  const existing = await prisma.project.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  return prisma.project.create({
-    data: {
-      userId,
-      name: "Default Project",
-      description: "Auto-created workspace project",
-    },
-  });
-}
 
 export type GenerateReviewResult = {
   jobId: string;

@@ -6,7 +6,11 @@ import { z } from "zod";
 import { runtimeEnv } from "@/config/runtime-env";
 import { prisma } from "@/server/db";
 import { getAuthConfig } from "@/server/auth/config";
-import { prepareAuthEnv, resolveAuthSecret } from "@/server/auth/env";
+import {
+  prepareAuthEnv,
+  resolveAuthSecret,
+  resolveAuthSecretForConfig,
+} from "@/server/auth/env";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -16,19 +20,18 @@ const credentialsSchema = z.object({
 /**
  * Full Auth.js instance (Node runtime).
  *
- * - trustHost: true — required on Vercel behind proxies
- * - secret from NEXTAUTH_SECRET (fallback AUTH_SECRET)
- * - bcryptjs (pure JS) — avoids native `bcrypt` binary mismatches on serverless
- * - JWT sessions; PrismaAdapter only when GitHub OAuth is configured
+ * Lazy config avoids throwing at import/build when secrets are unresolved.
+ * secret: AUTH_SECRET || NEXTAUTH_SECRET || build fallback
  */
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   prepareAuthEnv();
   const base = getAuthConfig();
-  const secret = resolveAuthSecret();
+  const secret = resolveAuthSecretForConfig();
+  const hasRealSecret = Boolean(resolveAuthSecret());
 
-  if (!secret) {
+  if (!hasRealSecret) {
     console.error(
-      "[auth] Missing NEXTAUTH_SECRET / AUTH_SECRET in runtime env. Check Vercel → Settings → Environment Variables (Production, Build + Runtime).",
+      "[auth] Using build fallback secret — set AUTH_SECRET or NEXTAUTH_SECRET for Production.",
     );
   }
 
@@ -38,7 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
 
   return {
     ...base,
-    secret: secret ?? process.env.NEXTAUTH_SECRET,
+    secret,
     trustHost: true,
     ...(githubEnabled ? { adapter: PrismaAdapter(prisma) } : {}),
     session: {
@@ -81,14 +84,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
               return null;
             }
 
-            // bcryptjs — pure JavaScript, safe on Vercel serverless (no native addon).
             const valid = await bcryptCompare(password, user.passwordHash);
             if (!valid) {
               console.warn("[auth] credentials: invalid password");
               return null;
             }
 
-            // Plain serializable user object only (no Date / Prisma class instances).
             return {
               id: String(user.id),
               email: user.email,

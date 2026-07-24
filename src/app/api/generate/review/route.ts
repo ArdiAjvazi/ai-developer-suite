@@ -47,13 +47,14 @@ export async function POST(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Code review failed.";
+    const staleSession = message.toLowerCase().includes("sign out");
 
     return NextResponse.json(
       {
         error: message,
         status: "FAILED",
       },
-      { status: 502 },
+      { status: staleSession ? 401 : 502 },
     );
   }
 }

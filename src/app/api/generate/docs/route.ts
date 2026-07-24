@@ -40,6 +40,10 @@ export async function POST(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Documentation generation failed.";
-    return NextResponse.json({ error: message, status: "FAILED" }, { status: 502 });
+    const staleSession = message.toLowerCase().includes("sign out");
+    return NextResponse.json(
+      { error: message, status: "FAILED" },
+      { status: staleSession ? 401 : 502 },
+    );
   }
 }

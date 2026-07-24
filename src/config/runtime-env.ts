@@ -1,39 +1,9 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-
-type EnvSnapshot = Record<string, string>;
-
-let snapshotCache: EnvSnapshot | null | undefined;
-
 /**
- * Load build-time env snapshot (written by scripts/snapshot-runtime-env.mjs).
- * Used when Vercel/Next leaves custom secrets out of process.env at runtime.
+ * Edge-safe environment helpers (no Node `fs` — used by `src/proxy.ts`).
+ *
+ * Static `process.env.KEY` references keep Turbopack/Next from stripping keys.
+ * Snapshot hydration lives in `runtime-env.node.ts` (Node/runtime only).
  */
-function loadEnvSnapshot(): EnvSnapshot {
-  if (snapshotCache !== undefined) {
-    return snapshotCache ?? {};
-  }
-
-  const candidates = [
-    join(process.cwd(), ".runtime-env.json"),
-    join(process.cwd(), ".next", "..", ".runtime-env.json"),
-  ];
-
-  for (const path of candidates) {
-    try {
-      if (!existsSync(path)) continue;
-      const raw = readFileSync(path, "utf8");
-      const parsed = JSON.parse(raw) as EnvSnapshot;
-      snapshotCache = parsed && typeof parsed === "object" ? parsed : {};
-      return snapshotCache;
-    } catch (error) {
-      console.error("[runtime-env] failed to read snapshot", path, error);
-    }
-  }
-
-  snapshotCache = null;
-  return {};
-}
 
 function clean(value: string | undefined | null): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -41,12 +11,21 @@ function clean(value: string | undefined | null): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** True while Next.js is compiling / collecting page data. */
+export function isNextBuildPhase(): boolean {
+  return (
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.NEXT_PHASE === "phase-production-compile" ||
+    process.env.npm_lifecycle_event === "build"
+  );
+}
+
+const BUILD_FALLBACK_SECRET = "fallback-secret-for-build";
+
 /**
  * Static process.env reads so Next/Turbopack keep these server keys available.
- * Falls back to the build-time `.runtime-env.json` snapshot when live env is empty.
  */
-function readLive(name: string): string | undefined {
-  // IMPORTANT: keep these as literal process.env.KEY references (not dynamic).
+export function runtimeEnv(name: string): string | undefined {
   switch (name) {
     case "DATABASE_URL":
       return clean(process.env.DATABASE_URL);
@@ -85,20 +64,6 @@ function readLive(name: string): string | undefined {
   }
 }
 
-export function runtimeEnv(name: string): string | undefined {
-  const live = readLive(name);
-  if (live) return live;
-
-  const fromSnapshot = clean(loadEnvSnapshot()[name]);
-  if (fromSnapshot) {
-    // Re-hydrate process.env so Auth.js / Prisma see the value too.
-    process.env[name] = fromSnapshot;
-    return fromSnapshot;
-  }
-
-  return undefined;
-}
-
 export function requireRuntimeEnv(name: string): string {
   const value = runtimeEnv(name);
   if (!value) {
@@ -109,8 +74,22 @@ export function requireRuntimeEnv(name: string): string {
   return value;
 }
 
-/** Presence diagnostics without exposing secret values. */
-export function envPresenceReport() {
+/**
+ * Auth.js secret with build-safe fallback so NextAuth does not throw during
+ * `next build` page collection when secrets are only available at runtime.
+ *
+ * Prefer AUTH_SECRET, then NEXTAUTH_SECRET (user-requested order).
+ */
+export function resolveAuthSecretWithFallback(): string {
+  return (
+    runtimeEnv("AUTH_SECRET") ||
+    runtimeEnv("NEXTAUTH_SECRET") ||
+    BUILD_FALLBACK_SECRET
+  );
+}
+
+/** Presence diagnostics without exposing secret values (live process.env only). */
+export function envPresenceReportLive() {
   const keys = [
     "DATABASE_URL",
     "AUTH_SECRET",
@@ -119,17 +98,10 @@ export function envPresenceReport() {
     "NEXTAUTH_URL",
   ] as const;
 
-  const snapshot = loadEnvSnapshot();
-  const report = keys.map((key) => ({
+  return keys.map((key) => ({
     key,
-    live: Boolean(readLive(key)),
-    snapshot: Boolean(clean(snapshot[key])),
-    resolved: Boolean(runtimeEnv(key)),
+    live: Boolean(runtimeEnv(key)),
   }));
-
-  return {
-    snapshotKeyCount: Object.keys(snapshot).length,
-    snapshotLoaded: snapshotCache !== null && snapshotCache !== undefined,
-    keys: report,
-  };
 }
+
+export { BUILD_FALLBACK_SECRET };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { runtimeEnv } from "@/config/runtime-env";
+import { isNextBuildPhase, runtimeEnv } from "@/config/runtime-env";
 
 const BUILD_PLACEHOLDER_DATABASE_URL =
   "postgresql://build:build@127.0.0.1:5432/build?schema=public";
@@ -17,18 +17,12 @@ export function sanitizeDatabaseUrl(connectionString: string): string {
   }
 }
 
-/** True while Next.js is compiling / collecting page data. */
-export function isNextBuildPhase(): boolean {
-  return (
-    process.env.NEXT_PHASE === "phase-production-build" ||
-    process.env.NEXT_PHASE === "phase-production-compile" ||
-    process.env.npm_lifecycle_event === "build"
-  );
-}
+export { isNextBuildPhase } from "@/config/runtime-env";
 
 /**
  * Resolve DATABASE_URL for Prisma / server bootstrapping.
- * Uses dynamic env access so Next.js cannot bake an empty value at build time.
+ * Build phase uses a non-connecting placeholder when unset so `next build`
+ * and `prisma generate` succeed without a live database.
  */
 export function resolveDatabaseUrl(): string {
   const configured = runtimeEnv("DATABASE_URL");
@@ -70,16 +64,16 @@ export function getServerEnv(): ServerEnv {
       return {
         DATABASE_URL: resolveDatabaseUrl(),
         AUTH_SECRET:
-          process.env.AUTH_SECRET ??
-          process.env.NEXTAUTH_SECRET ??
-          "build-placeholder-secret",
-        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-        AUTH_URL: process.env.AUTH_URL,
-        NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-        AUTH_GITHUB_ID: process.env.AUTH_GITHUB_ID,
-        AUTH_GITHUB_SECRET: process.env.AUTH_GITHUB_SECRET,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-        OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+          runtimeEnv("AUTH_SECRET") ??
+          runtimeEnv("NEXTAUTH_SECRET") ??
+          "fallback-secret-for-build",
+        NEXTAUTH_SECRET: runtimeEnv("NEXTAUTH_SECRET"),
+        AUTH_URL: runtimeEnv("AUTH_URL"),
+        NEXTAUTH_URL: runtimeEnv("NEXTAUTH_URL"),
+        AUTH_GITHUB_ID: runtimeEnv("AUTH_GITHUB_ID"),
+        AUTH_GITHUB_SECRET: runtimeEnv("AUTH_GITHUB_SECRET"),
+        OPENAI_API_KEY: runtimeEnv("OPENAI_API_KEY"),
+        OPENAI_BASE_URL: runtimeEnv("OPENAI_BASE_URL"),
       };
     }
     throw new Error(`Invalid environment: ${parsed.error.message}`);
@@ -97,6 +91,6 @@ export function getServerEnv(): ServerEnv {
     AUTH_SECRET:
       data.AUTH_SECRET ??
       data.NEXTAUTH_SECRET ??
-      (allowSoftValidation ? "build-placeholder-secret" : data.AUTH_SECRET),
+      (allowSoftValidation ? "fallback-secret-for-build" : data.AUTH_SECRET),
   };
 }

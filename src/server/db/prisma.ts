@@ -1,12 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 import { resolveDatabaseUrl } from "@/config/env";
+import { hydrateRuntimeEnvFromSnapshot } from "@/config/runtime-env.node";
 
 /**
  * Bump when the Prisma schema gains models/enums so hot-reload
  * discards stale singleton clients from earlier generates.
  */
-const PRISMA_CLIENT_GENERATION = 4;
+const PRISMA_CLIENT_GENERATION = 5;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -14,6 +15,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
+  hydrateRuntimeEnvFromSnapshot();
   const connectionString = resolveDatabaseUrl();
   const adapter = new PrismaPg({ connectionString });
 

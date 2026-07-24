@@ -1,9 +1,15 @@
-import { runtimeEnv } from "@/config/runtime-env";
+import {
+  isNextBuildPhase,
+  runtimeEnv,
+  resolveAuthSecretWithFallback,
+} from "@/config/runtime-env";
 
 /**
  * Normalize Auth.js env before NextAuth reads process.env.
  * Bad AUTH_URL values crash next-auth's reqWithEnvURL (unhandled new URL()).
  * Localhost AUTH_URL on Vercel rewrites redirects to the wrong host after login.
+ *
+ * Edge-safe — no filesystem / snapshot imports.
  */
 export function prepareAuthEnv(): void {
   const raw = runtimeEnv("AUTH_URL") ?? runtimeEnv("NEXTAUTH_URL");
@@ -33,7 +39,6 @@ export function prepareAuthEnv(): void {
     const canonical = `https://${vercelHost.replace(/\/$/, "")}`;
     process.env.AUTH_URL = canonical;
     process.env.NEXTAUTH_URL = canonical;
-    console.warn(`[auth] Using deployment URL for Auth.js: ${canonical}`);
     return;
   }
 
@@ -54,7 +59,29 @@ export function prepareAuthEnv(): void {
   process.env.NEXTAUTH_URL = origin;
 }
 
-/** Prefer NEXTAUTH_SECRET, then AUTH_SECRET (Auth.js v5 accepts either). */
+/**
+ * Prefer AUTH_SECRET, then NEXTAUTH_SECRET.
+ * During build, always returns a placeholder so Auth.js does not throw.
+ * At runtime, returns undefined when missing (route guards can 500 clearly).
+ */
 export function resolveAuthSecret(): string | undefined {
-  return runtimeEnv("NEXTAUTH_SECRET") ?? runtimeEnv("AUTH_SECRET");
+  const secret =
+    runtimeEnv("AUTH_SECRET") || runtimeEnv("NEXTAUTH_SECRET") || undefined;
+
+  if (secret) return secret;
+
+  if (isNextBuildPhase()) {
+    return resolveAuthSecretWithFallback();
+  }
+
+  return undefined;
+}
+
+/** Always returns a string — safe for NextAuth config init during build. */
+export function resolveAuthSecretForConfig(): string {
+  return (
+    runtimeEnv("AUTH_SECRET") ||
+    runtimeEnv("NEXTAUTH_SECRET") ||
+    resolveAuthSecretWithFallback()
+  );
 }

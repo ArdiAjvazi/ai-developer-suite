@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Ensure the build-time env snapshot is included in serverless function bundles.
+  // Include build-time env snapshot in serverless bundles for auth/health routes.
   outputFileTracingIncludes: {
-    "/api/**/*": ["./.runtime-env.json"],
-    "/*": ["./.runtime-env.json"],
+    "/api/auth/[...nextauth]": ["./.runtime-env.json"],
+    "/api/health/auth": ["./.runtime-env.json"],
   },
+  serverExternalPackages: ["@prisma/client", "prisma", "pg", "bcryptjs"],
 };
 
 export default nextConfig;

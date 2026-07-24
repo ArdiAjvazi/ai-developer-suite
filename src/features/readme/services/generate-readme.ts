@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { ensureDefaultProject } from "@/server/db/ensure-default-project";
 import { createChatCompletion, isOpenAiConfigured } from "@/server/ai/client";
 import { buildReadmePrompt } from "@/server/ai/prompts/readme";
 import { buildMockReadmeResult } from "@/server/ai/prompts/mock-readme";
@@ -12,25 +13,6 @@ import {
   buildBadges,
   templateSections,
 } from "@/features/readme/lib/templates";
-
-async function ensureDefaultProject(userId: string) {
-  const existing = await prisma.project.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  return prisma.project.create({
-    data: {
-      userId,
-      name: "Default Project",
-      description: "Auto-created workspace project",
-    },
-  });
-}
 
 function stripWrappingFences(content: string) {
   const trimmed = content.trim();
