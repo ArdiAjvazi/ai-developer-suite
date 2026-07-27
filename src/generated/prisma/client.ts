@@ -62,6 +62,11 @@ export type Session = Prisma.SessionModel
  */
 export type VerificationToken = Prisma.VerificationTokenModel
 /**
+ * Model PasswordResetToken
+ * One-time password reset tokens (email may not yet map to a User row).
+ */
+export type PasswordResetToken = Prisma.PasswordResetTokenModel
+/**
  * Model Project
  * 
  */

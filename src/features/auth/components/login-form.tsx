@@ -1,191 +1,154 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { siteConfig } from "@/config/site";
+import { useSearchParams } from "next/navigation";
+import { loginAction } from "@/actions/auth";
+import {
+  loginSchema,
+  type LoginInput,
+} from "@/features/auth/schemas/auth";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 
 type LoginFormProps = {
   githubEnabled: boolean;
+  googleEnabled: boolean;
 };
 
-export function LoginForm({ githubEnabled }: LoginFormProps) {
-  const router = useRouter();
+export function LoginForm({ githubEnabled, googleEnabled }: LoginFormProps) {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
   const errorParam = searchParams.get("error");
 
-  const [email, setEmail] = useState("demo@codepilot.ai");
-  const [password, setPassword] = useState("password123");
-  const [error, setError] = useState<string | null>(() => {
+  const [formError, setFormError] = useState<string | null>(() => {
     if (!errorParam) return null;
     if (errorParam === "Configuration") {
-      return "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL). Check Vercel env vars.";
+      return "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL).";
     }
     if (errorParam === "OAuthCallback" || errorParam === "OAuthSignin") {
-      return "OAuth provider failed. Verify GitHub callback URL matches this domain.";
+      return "OAuth provider failed. Verify callback URLs for this domain.";
     }
     return `Authentication failed (${errorParam}). Please try again.`;
   });
-  const [pending, setPending] = useState(false);
 
-  function resolvePostLoginPath(resultUrl: string | null | undefined) {
-    const fallback =
-      callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
-        ? callbackUrl
-        : "/dashboard";
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "demo@codepilot.ai",
+      password: "password123",
+    },
+  });
 
-    if (!resultUrl) return fallback;
-
-    try {
-      if (resultUrl.startsWith("/") && !resultUrl.startsWith("//")) {
-        return resultUrl;
-      }
-
-      const url = new URL(resultUrl);
-      // Ignore AUTH_URL mismatches (e.g. localhost / wrong Vercel host).
-      if (url.origin === window.location.origin) {
-        return `${url.pathname}${url.search}${url.hash}` || fallback;
-      }
-    } catch {
-      // fall through
-    }
-
-    return fallback;
-  }
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-        callbackUrl:
-          callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
-            ? `${window.location.origin}${callbackUrl}`
-            : callbackUrl,
-      });
-
-      if (result?.error) {
-        if (result.error === "Configuration") {
-          setError(
-            "Auth server misconfigured (missing AUTH_SECRET or bad AUTH_URL). Check Vercel env vars.",
-          );
-        } else {
-          setError("Invalid email or password.");
-        }
-        return;
-      }
-
-      router.push(resolvePostLoginPath(result?.url));
-      router.refresh();
-    } catch (err) {
-      console.error("[login] signIn failed", err);
-      setError(
-        "Login request failed (server error). Check AUTH_URL and AUTH_SECRET on Vercel.",
-      );
-    } finally {
-      setPending(false);
+  async function onSubmit(values: LoginInput) {
+    setFormError(null);
+    const result = await loginAction(values);
+    if (result?.error) {
+      setFormError(result.error);
     }
   }
+
+  const oauthCallback =
+    callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+      ? callbackUrl
+      : "/dashboard";
 
   return (
-    <div className="w-full max-w-md space-y-8">
-      <div className="space-y-2 text-center">
-        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-sm font-bold text-background">
-          CP
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Sign in to {siteConfig.name}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Use the demo credentials or connect GitHub when configured.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-border bg-surface p-6">
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label
-              htmlFor="email"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-elevated px-3 text-sm text-foreground outline-none ring-0 transition placeholder:text-muted-foreground/60 focus:border-zinc-500"
-              placeholder="you@company.com"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="password"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-elevated px-3 text-sm text-foreground outline-none transition focus:border-zinc-500"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error ? (
-            <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-              {error}
-            </p>
+    <div className="space-y-5">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@company.com"
+            {...register("email")}
+          />
+          {errors.email ? (
+            <p className="text-xs text-red-300">{errors.email.message}</p>
           ) : null}
+        </div>
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex h-10 w-full items-center justify-center rounded-md bg-foreground text-sm font-medium text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {pending ? "Signing in…" : "Continue with email"}
-          </button>
-        </form>
-
-        {githubEnabled ? (
-          <>
-            <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                or
-              </span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-            <button
-              type="button"
-              onClick={() => signIn("github", { callbackUrl })}
-              className="flex h-10 w-full items-center justify-center rounded-md border border-border bg-elevated text-sm font-medium text-foreground transition hover:bg-zinc-800"
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="password">Password</Label>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-medium text-cyan-300 hover:text-cyan-200"
             >
-              Continue with GitHub
-            </button>
-          </>
-        ) : null}
-      </div>
+              Forgot password?
+            </Link>
+          </div>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="••••••••"
+            {...register("password")}
+          />
+          {errors.password ? (
+            <p className="text-xs text-red-300">{errors.password.message}</p>
+          ) : null}
+        </div>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Demo: <span className="text-foreground">demo@codepilot.ai</span> /{" "}
-        <span className="text-foreground">password123</span>
-      </p>
+        {formError ? (
+          <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            {formError}
+          </p>
+        ) : null}
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Signing in…" : "Continue with email"}
+        </Button>
+      </form>
+
+      {githubEnabled || googleEnabled ? (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              or
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <div className="space-y-2">
+            {githubEnabled ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() =>
+                  signIn("github", { callbackUrl: oauthCallback })
+                }
+              >
+                Continue with GitHub
+              </Button>
+            ) : null}
+            {googleEnabled ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() =>
+                  signIn("google", { callbackUrl: oauthCallback })
+                }
+              >
+                Continue with Google
+              </Button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

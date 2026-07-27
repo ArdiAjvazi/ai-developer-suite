@@ -39,13 +39,14 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  projects     Project[]
-  jobs         Job[]
-  repositories Repository[]
-  settings     UserSettings?
-  auditLogs    AuditLog[]
+  accounts           Account[]
+  sessions           Session[]
+  projects           Project[]
+  jobs               Job[]
+  repositories       Repository[]
+  settings           UserSettings?
+  auditLogs          AuditLog[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Account {
@@ -85,6 +86,20 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+/// One-time password reset tokens (email may not yet map to a User row).
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([expiresAt])
 }
 
 model Project {

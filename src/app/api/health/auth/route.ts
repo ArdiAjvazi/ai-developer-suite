@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEnv } from "@/config/runtime-env";
+import { getOAuthProviderFlags } from "@/server/auth/oauth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +22,7 @@ export async function GET() {
   );
   const hasDatabaseUrl = Boolean(getEnv("DATABASE_URL"));
   const hasAuthUrl = Boolean(authUrl);
+  const oauth = getOAuthProviderFlags();
 
   const missing: string[] = [];
   if (!hasAuthSecret) missing.push("AUTH_SECRET or NEXTAUTH_SECRET");
@@ -32,12 +34,10 @@ export async function GET() {
     hasAuthSecret,
     hasDatabaseUrl,
     hasAuthUrl,
-    hasGithubOAuth: Boolean(
-      getEnv("AUTH_GITHUB_ID") && getEnv("AUTH_GITHUB_SECRET"),
-    ),
+    hasGithubOAuth: oauth.github,
+    hasGoogleOAuth: oauth.google,
     authUrlHost,
     missing,
-    // Confirms dynamic lookup sees platform vars (sanity check for inlining bugs).
     vercelEnv: getEnv("VERCEL_ENV") ?? null,
     vercelUrl: getEnv("VERCEL_URL") ?? null,
   });
